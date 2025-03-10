@@ -13,21 +13,16 @@ Fitphile is a Flask-based AI-powered fitness tracking application that uses **Me
 
 ## Project Structure
 ```
-/Fitphile
-│── /static
-│   │── styles.css  # CSS for styling
+/finali guess
 │── /templates
-│   │── index.html   # Exercise selection page
-│   │── exercise.html # Live tracking page
-│── /exercise_files
-│   │── pushups.py   # Exercise tracking scripts
-│   │── squats.py
-│   │── plank.py
-│   │── lunges.py
-│── app.py  # Flask server
-│── README.md  # Documentation
+│   │── index.html
+│── lunges.py
+│── plank.py   
+│── pushups.py 
+│── server.py   
+│── squats.py
 │── requirements.txt  # Python dependencies
-```
+
 
 ## Installation
 ### 1. Clone the repository
