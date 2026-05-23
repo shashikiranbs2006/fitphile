@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="welcome-section">
+    <h1>Welcome Back, <span class="gradient-text">{{ username }}</span>!</h1>
+    <p>Select a tracking module to start your exercise session and count your repetitions automatically.</p>
+</div>
+
+<!-- Stats Summary Dashboard Panel -->
+<div class="stats-summary">
+    <div class="stat-box glass-panel">
+        <div class="stat-icon"><i class="fa-solid fa-dumbbell"></i></div>
+        <div class="stat-details">
+            <h3>Workouts Completed</h3>
+            <div class="stat-val">{{ stats.total_workouts }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-box glass-panel">
+        <div class="stat-icon"><i class="fa-solid fa-repeat"></i></div>
+        <div class="stat-details">
+            <h3>Total Reps</h3>
+            <div class="stat-val">{{ stats.total_reps }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-box glass-panel">
+        <div class="stat-icon"><i class="fa-solid fa-fire"></i></div>
+        <div class="stat-details">
+            <h3>Calories Burned</h3>
+            <div class="stat-val">{{ stats.total_calories }} kcal</div>
+        </div>
+    </div>
+</div>
+
+<!-- Exercise Catalog Section -->
+<h2 class="section-title">Exercise Modules</h2>
+<div class="exercises-grid">
+    <!-- Push-ups -->
+    <div class="exercise-card glass-panel">
+        <div>
+            <div class="ex-icon"><i class="fa-solid fa-arrow-down-up-lock"></i></div>
+            <h3>Push-ups</h3>
+            <p>Monitors shoulder-elbow-wrist alignment to check chest depth and arm extensions.</p>
+        </div>
+        <a href="{{ url_for('workout', exercise='pushups') }}" class="btn btn-primary">Start Session</a>
+    </div>
+
+    <!-- Squats -->
+    <div class="exercise-card glass-panel">
+        <div>
+            <div class="ex-icon"><i class="fa-solid fa-arrows-up-down"></i></div>
+            <h3>Squats</h3>
+            <p>Analyzes hip-knee-ankle angles to evaluate depth consistency and leg symmetry.</p>
+        </div>
+        <a href="{{ url_for('workout', exercise='squats') }}" class="btn btn-primary">Start Session</a>
+    </div>
+
+    <!-- Lunges -->
+    <div class="exercise-card glass-panel">
+        <div>
+            <div class="ex-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
+            <h3>Lunges</h3>
+            <p>Tracks left and right knee flexion independently to verify form depth and posture.</p>
+        </div>
+        <a href="{{ url_for('workout', exercise='lunges') }}" class="btn btn-primary">Start Session</a>
+    </div>
+
+    <!-- Planks -->
+    <div class="exercise-card glass-panel">
+        <div>
+            <div class="ex-icon"><i class="fa-solid fa-stopwatch"></i></div>
+            <h3>Planks</h3>
+            <p>Measures angular body tilt and spinal alignment coordinates for scale-invariant core timing.</p>
+        </div>
+        <a href="{{ url_for('workout', exercise='plank') }}" class="btn btn-primary">Start Session</a>
+    </div>
+</div>
+{% endblock %}

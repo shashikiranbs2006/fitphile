@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="welcome-section">
+    <h1><span class="gradient-text">Personalize Your Fitness</span></h1>
+    <p>Select your profile or create a new one to log your workout progress and track metrics.</p>
+</div>
+
+<div class="user-selector-container glass-panel">
+    <h2>Select Profile</h2>
+    
+    <div class="profile-grid">
+        {% for user in users %}
+        <div class="profile-card glass-panel {% if user.username == active_user %}active{% endif %}" 
+             onclick="selectProfile({{ user.id }})">
+            <div class="profile-avatar">{{ user.username[0] | upper }}</div>
+            <div class="profile-name">{{ user.username }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="register-form">
+        <input type="text" id="new-username" placeholder="Enter new profile name..." maxlength="15">
+        <button class="btn btn-primary" onclick="createProfile()">
+            <i class="fa-solid fa-user-plus"></i> Create
+        </button>
+    </div>
+    
+    <div id="error-message" style="color: #ef4444; font-size: 0.9rem; text-align: center; margin-top: 15px; display: none;"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function selectProfile(userId) {
+        fetch('/set_user', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ user_id: userId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/dashboard';
+            } else {
+                showError(data.error);
+            }
+        });
+    }
+
+    function createProfile() {
+        const username = document.getElementById('new-username').value.trim();
+        if (!username) {
+            showError("Profile name cannot be empty.");
+            return;
+        }
+        
+        fetch('/set_user', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username: username })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/dashboard';
+            } else {
+                showError(data.error);
+            }
+        });
+    }
+
+    function showError(msg) {
+        const errDiv = document.getElementById('error-message');
+        errDiv.textContent = msg;
+        errDiv.style.display = 'block';
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="welcome-section">
+    <h1>Workout Log & <span class="gradient-text">History</span></h1>
+    <p>Track your consistency and monitor key fitness milestones for <strong>{{ username }}</strong>.</p>
+</div>
+
+<!-- Small stats cards panel -->
+<div class="stats-summary" style="margin-bottom: 30px;">
+    <div class="stat-box glass-panel">
+        <div class="stat-icon"><i class="fa-solid fa-calendar-check"></i></div>
+        <div class="stat-details">
+            <h3>Total Sessions</h3>
+            <div class="stat-val">{{ stats.total_workouts }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-box glass-panel">
+        <div class="stat-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+        <div class="stat-details">
+            <h3>Active Hold Time</h3>
+            <div class="stat-val">{{ (stats.total_duration_seconds / 60) | int }} mins</div>
+        </div>
+    </div>
+    
+    <div class="stat-box glass-panel">
+        <div class="stat-icon"><i class="fa-solid fa-fire-flame-curved"></i></div>
+        <div class="stat-details">
+            <h3>Calories</h3>
+            <div class="stat-val">{{ stats.total_calories }} kcal</div>
+        </div>
+    </div>
+</div>
+
+<!-- History Log Table -->
+<h2 class="section-title">Workout History Logs</h2>
+<div class="history-table-container glass-panel">
+    {% if history %}
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th>Date & Time</th>
+                <th>Exercise Type</th>
+                <th>Repetitions</th>
+                <th>Duration</th>
+                <th>Calories Burned</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in history %}
+            <tr>
+                <td>{{ row.created_at }}</td>
+                <td>
+                    <span class="badge badge-{{ row.exercise_type }}">
+                        {{ row.exercise_type.capitalize() }}
+                    </span>
+                </td>
+                <td>
+                    {% if row.exercise_type == 'plank' %}
+                        -
+                    {% else %}
+                        {{ row.count }} reps
+                    {% endif %}
+                </td>
+                <td>
+                    {% if row.duration_seconds < 60 %}
+                        {{ row.duration_seconds }} secs
+                    {% else %}
+                        {{ (row.duration_seconds / 60) | int }}m {{ row.duration_seconds % 60 }}s
+                    {% endif %}
+                </td>
+                <td style="color: #10b981; font-weight: 600;">
+                    {{ row.calories }} kcal
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+        <i class="fa-regular fa-clipboard" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
+        <p>No workouts logged yet. Select an exercise to record your first session!</p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary" style="margin-top: 20px;">Get Started</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

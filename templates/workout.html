@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="workout-container">
+
+    <!-- Camera + Canvas Pane -->
+    <div class="video-pane">
+        <div id="camera-warning" class="alert-banner" style="display:none;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <div>
+                <strong>Camera Error:</strong> Grant browser camera permission and refresh the page.
+            </div>
+        </div>
+
+        <div class="video-stream-wrapper">
+            <!-- Hidden video element — raw webcam feed -->
+            <video id="webcam" autoplay playsinline muted style="display:none;"></video>
+            <!-- Canvas overlays skeleton on top of mirrored video -->
+            <canvas id="output-canvas" class="video-stream-img"></canvas>
+            <div id="loading-overlay" class="loading-overlay">
+                <div class="spinner"></div>
+                <p>Loading AI pose model…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="workout-stats-panel">
+        <div class="glass-panel live-stat-card">
+            <h4>{{ exercise.rstrip('s').capitalize() }} Metric</h4>
+            <div id="metric-value" class="live-stat-val rep-count">0</div>
+            <h4 style="margin-top:20px;">Exercise State</h4>
+            <div id="exercise-state" class="live-stat-val" style="font-size:1.5rem;color:var(--text-primary);">Ready</div>
+        </div>
+
+        <div class="glass-panel live-feedback-box">
+            <h4 style="color:var(--primary-color);margin-bottom:5px;">
+                <i class="fa-solid fa-brain"></i> AI Feedback
+            </h4>
+            <p id="feedback-text" class="feedback-text">Initializing pose model…</p>
+        </div>
+
+        <div class="glass-panel" style="padding:20px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+                <span style="color:var(--text-secondary);">Timer:</span>
+                <span id="session-timer" style="font-weight:600;">00:00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+                <span style="color:var(--text-secondary);">Est. Calories:</span>
+                <span id="calories-burned" style="font-weight:600;color:#10b981;">0.00 kcal</span>
+            </div>
+        </div>
+
+        <div class="workout-controls">
+            <button class="btn btn-danger" onclick="finishWorkout()">
+                <i class="fa-solid fa-circle-stop"></i> Finish Workout
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!--
+    MediaPipe Pose Landmarker (Tasks Vision) — runs entirely in the browser via WASM.
+    No webcam data ever leaves the device for pose detection.
+    Only the 33 normalized landmark coordinates are sent to our Flask API.
+-->
+<script type="module">
+import {
+    PoseLandmarker,
+    FilesetResolver,
+    DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const exercise = "{{ exercise }}";
+const isPlank = exercise === "plank";
+
+// --- DOM refs ---
+const video = document.getElementById('webcam');
+const canvas = document.getElementById('output-canvas');
+const ctx = canvas.getContext('2d');
+const loadingOverlay = document.getElementById('loading-overlay');
+
+// --- State ---
+let poseLandmarker = null;
+let lastVideoTime = -1;
+let animFrameId = null;
+let sessionStart = Date.now();
+let lastCount = 0;
+let lastMilestone = 0;
+let finishing = false;
+
+// --- Browser TTS ---
+function speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 1.0;
+    utt.volume = 1.0;
+    window.speechSynthesis.speak(utt);
+}
+
+// --- Timer display ---
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function updateTimer() {
+    const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+    document.getElementById('session-timer').textContent = formatTime(elapsed);
+}
+setInterval(updateTimer, 1000);
+
+// --- Load MediaPipe model ---
+async function initPoseLandmarker() {
+    const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    );
+    poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+            delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numPoses: 1
+    });
+
+    loadingOverlay.style.display = 'none';
+    await startCamera();
+}
+
+// --- Start webcam ---
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480, facingMode: 'user' },
+            audio: false
+        });
+        video.srcObject = stream;
+        video.addEventListener('loadeddata', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            requestAnimationFrame(processFrame);
+        });
+    } catch (err) {
+        document.getElementById('camera-warning').style.display = 'flex';
+        document.getElementById('feedback-text').textContent = 'Camera permission denied. Please allow camera access.';
+        console.error('Camera error:', err);
+    }
+}
+
+// --- Send landmarks to Flask and update UI ---
+async function sendLandmarks(landmarks) {
+    if (finishing) return;
+    try {
+        const payload = landmarks.map(lm => ({
+            x: lm.x, y: lm.y, z: lm.z, visibility: lm.visibility ?? 1.0
+        }));
+
+        const res = await fetch('/api/landmarks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ landmarks: payload })
+        });
+        const data = await res.json();
+
+        if (!data.active) return;
+
+        // Update stats panel
+        const metricEl = document.getElementById('metric-value');
+        metricEl.textContent = isPlank ? data.duration + 's' : data.count;
+
+        document.getElementById('exercise-state').textContent = data.state;
+        document.getElementById('feedback-text').textContent = data.feedback;
+        document.getElementById('calories-burned').textContent = data.calories + ' kcal';
+
+        // Voice: count announcements
+        if (!isPlank && data.count > lastCount) {
+            lastCount = data.count;
+            if (data.count % 10 === 0) {
+                speak(`Excellent! ${data.count} ${exercise} done!`);
+            } else {
+                speak(String(data.count));
+            }
+        }
+
+        // Voice: plank milestones
+        if (isPlank) {
+            const milestones = [10, 20, 30, 45, 60, 90, 120, 180];
+            for (const m of milestones) {
+                if (data.duration >= m && lastMilestone < m) {
+                    lastMilestone = m;
+                    speak(`Great job! ${m} seconds!`);
+                    break;
+                }
+            }
+        }
+
+    } catch (err) {
+        // Silently ignore network blips — next frame will retry
+    }
+}
+
+// Drawing utilities
+let drawUtils = null;
+
+// --- Main render loop ---
+function processFrame() {
+    animFrameId = requestAnimationFrame(processFrame);
+
+    if (video.readyState < 2) return;
+    if (video.currentTime === lastVideoTime) return;
+    lastVideoTime = video.currentTime;
+
+    // Run pose detection
+    const result = poseLandmarker.detectForVideo(video, performance.now());
+
+    // Draw mirrored video frame
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    if (result.landmarks && result.landmarks.length > 0) {
+        const lms = result.landmarks[0];
+
+        // Mirror x coordinates for drawing (canvas is already mirrored visually)
+        if (!drawUtils) drawUtils = new DrawingUtils(ctx);
+
+        // Draw skeleton
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.translate(-canvas.width, 0);
+
+        drawUtils.drawConnectors(lms, PoseLandmarker.POSE_CONNECTIONS, {
+            color: 'rgba(124, 58, 237, 0.8)',
+            lineWidth: 2
+        });
+        drawUtils.drawLandmarks(lms, {
+            color: 'rgba(6, 182, 212, 0.9)',
+            fillColor: 'rgba(212, 182, 6, 0.9)',
+            radius: 4
+        });
+        ctx.restore();
+
+        // Send to Flask (throttled — only every other frame to reduce API load)
+        if (Math.round(performance.now()) % 2 === 0) {
+            sendLandmarks(lms);
+        }
+    } else {
+        document.getElementById('feedback-text').textContent = 'No body detected. Step into the frame.';
+    }
+}
+
+// --- Finish workout ---
+window.finishWorkout = async function() {
+    finishing = true;
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+
+    await fetch('/api/finish', { method: 'POST' });
+    window.location.href = '/history';
+};
+
+// Boot
+initPoseLandmarker();
+</script>
+
+<style>
+.loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(9, 10, 15, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border-radius: 12px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    z-index: 10;
+}
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(124, 58, 237, 0.2);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.video-pane { position: relative; }
+.video-stream-wrapper { position: relative; }
+</style>
+{% endblock %}

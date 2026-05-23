@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitphile | AI Fitness Companion</title>
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Core UI Styling -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <header class="glass-panel">
+        <a href="{{ url_for('dashboard') }}" class="logo">
+            <i class="fa-solid fa-heart-pulse"></i>
+            <span>FITPHILE</span>
+        </a>
+        <nav class="nav-links">
+            <a href="{{ url_for('dashboard') }}" class="nav-btn {% if request.path == '/dashboard' %}active{% endif %}">
+                <i class="fa-solid fa-gauge"></i> Dashboard
+            </a>
+            <a href="{{ url_for('history') }}" class="nav-btn {% if request.path == '/history' %}active{% endif %}">
+                <i class="fa-solid fa-clock-rotate-left"></i> History
+            </a>
+            <a href="{{ url_for('home') }}" class="nav-btn {% if request.path == '/' %}active{% endif %}">
+                <i class="fa-solid fa-user-gear"></i> Profiles ({{ active_user or 'Guest' }})
+            </a>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Fitphile AI Workout Tracker. Built with MediaPipe Pose & Flask.</p>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
